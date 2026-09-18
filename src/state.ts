@@ -7,7 +7,7 @@ const STATE_FILE = path.join(process.cwd(), ".triage-state.json");
 export function loadState(): StateFile {
   if (!fs.existsSync(STATE_FILE)) {
     return {
-      lastCheckedAt: new Date(0).toISOString(),
+      lastCheckedAt: new Date().toISOString(),
       issues: {},
     };
   }

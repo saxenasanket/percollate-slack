@@ -19,7 +19,7 @@ async function poll(): Promise<void> {
 
   try {
     // Load current state
-    const state = loadState();
+    let state = loadState();
     console.log(`Last checked at: ${state.lastCheckedAt}`);
 
     // Fetch issues updated since last check
@@ -28,6 +28,9 @@ async function poll(): Promise<void> {
 
     if (allIssues.length === 0) {
       console.log("No new or updated issues.");
+      // Still update lastCheckedAt even if no issues
+      state.lastCheckedAt = new Date().toISOString();
+      saveState(state);
       return;
     }
 
@@ -57,12 +60,25 @@ async function poll(): Promise<void> {
     console.log(`Triaged ${triageResults.length} issues`);
 
     // Filter for notifications (exclude non-actionable low priority)
-    const surfacedIssues = triageResults.filter(
-      (t) =>
+    const surfacedIssues = triageResults.filter((t) => {
+      const matches =
         (t.actionable && (t.priority === "Critical" || t.priority === "High")) ||
         t.priority === "Medium" ||
-        (t.duplicates && t.duplicates.length > 0)
-    );
+        (t.duplicates && t.duplicates.length > 0);
+
+      // Debug logging
+      if (!matches) {
+        console.log(
+          `  ❌ Issue #${t.issueNumber} filtered: priority=${t.priority}, actionable=${t.actionable}, duplicates=${t.duplicates?.length || 0}`
+        );
+      } else {
+        console.log(
+          `  ✅ Issue #${t.issueNumber} surfaced: priority=${t.priority}, actionable=${t.actionable}, duplicates=${t.duplicates?.length || 0}`
+        );
+      }
+
+      return matches;
+    });
 
     console.log(`Surfacing ${surfacedIssues.length} of ${triageResults.length} issues`);
 
@@ -81,15 +97,14 @@ async function poll(): Promise<void> {
       console.log("No issues to surface after filtering.");
     }
 
-    // Update state
-    let newState = state;
-    newState.lastCheckedAt = new Date().toISOString();
-
+    // Update state with all fetched issues (mark as seen) and current timestamp
+    state.lastCheckedAt = new Date().toISOString();
     for (const issue of allIssues) {
-      newState = updateIssueTimestamp(newState, issue.number, issue.updated_at);
+      state = updateIssueTimestamp(state, issue.number, issue.updated_at);
     }
 
-    saveState(newState);
+    // Save updated state
+    saveState(state);
     console.log("State updated and saved.");
   } catch (error) {
     console.error("Poll error:", error);

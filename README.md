@@ -330,6 +330,297 @@ Slack Channel
 
 ---
 
+## Decision Logic Behind Each Case (With Code References)
+
+### Filter Logic: Which Issues Get Surfaced vs Filtered?
+
+**Code Reference:** `src/index.ts:60-65` and `src/slack.ts` (organization logic)
+
+An issue is **SURFACED** (shown in Slack) if it matches ANY of these conditions:
+
+```typescript
+// src/index.ts:60-65
+const shouldSurface = 
+  (actionable && (priority === "Critical" || priority === "High")) ||
+  priority === "Medium" ||
+  (duplicates && duplicates.length > 0)
+```
+
+| Condition | Result | Reason | Example |
+|-----------|--------|--------|---------|
+| **Critical + Actionable** | ✅ SURFACED → 🔴 Expanded | Production is down, team can act immediately | "Database offline - API requests failing" |
+| **High + Actionable** | ✅ SURFACED → 🟠 Expanded | Significant impact, enough info to act | "Login page broken for 50% of users" |
+| **Medium (any actionability)** | ✅ SURFACED → 🟡 Bullets | Worth investigating, even if low urgency | "Dashboard load time increased by 2s" |
+| **Has Duplicates** | ✅ SURFACED → 🔁 Section | Flag duplicates for awareness/consolidation | "#5 is same as #3 - both report auth timeout" |
+| **Low + Non-Actionable** | ❌ FILTERED | Too vague, team can't act, low impact | "Users say the app is slow" (no details) |
+| **Low + Actionable + No Duplicates** | ❌ FILTERED | Low priority, even if actionable | "Fix typo on welcome page" |
+
+---
+
+### Priority Logic: How Does Claude Determine Priority?
+
+**Code Reference:** `src/triage.ts:21-42` (prompt with priority definition)
+
+Claude receives this instruction in the prompt (line 34 of `src/triage.ts`):
+
+```typescript
+// Priority definition sent to Claude:
+// "Critical" (blocks production/core feature)
+// "High" (significant impact or bug)
+// "Medium" (normal priority)
+// "Low" (minor/nice-to-have)
+```
+
+Claude analyzes:
+
+| Signal | Priority | Example | Code Logic |
+|--------|----------|---------|------------|
+| **Production down** + **all users blocked** | Critical | "Database connection pool exhausted - all API requests failing" | Prompt at `src/triage.ts:34` |
+| **Significant feature broken** + **multiple users affected** | High | "Login page returning 500 errors - users can't authenticate" | Same prompt |
+| **Feature request** or **quality issue** + **moderate impact** | Medium | "Dashboard queries taking 15s instead of 2s" | Same prompt |
+| **Typo**, **minor UX**, **documentation** | Low | "Fix typo in welcome page" | Same prompt |
+
+Claude's semantic understanding handles nuance — no hardcoded rules.
+
+---
+
+### Actionable Logic: How Does Claude Judge Actionability?
+
+**Code Reference:** `src/triage.ts:36-37` (prompt line)
+
+Claude receives this in the prompt (line 36 of `src/triage.ts`):
+
+```typescript
+// actionable: true if the issue has enough information to act on it
+```
+
+Claude evaluates:
+
+| Issue | Actionable? | Reason | Example |
+|-------|-------------|--------|---------|
+| **Clear description + symptoms + impact** | ✅ YES | Team knows what to do | "Database error: 'connection refused' on host db.prod.internal, started 2026-09-18T10:00Z, affects all API endpoints" |
+| **Vague description + no context** | ❌ NO | Team doesn't know how to start | "App is slow" (what app? when? which user?) |
+| **Feature request without requirements** | ❌ NO | Unclear scope | "Add dark mode" (design specs? timeline?) |
+| **Specific error message + repro steps** | ✅ YES | Can investigate immediately | "Error: 'ERR_ECONNREFUSED' when running `npm start`, happens on Node 18+, not Node 16" |
+
+**Filter Impact:** (`src/index.ts:60-65`)
+- Low priority + **non-actionable** → FILTERED (don't notify)
+- Low priority + **actionable** → FILTERED (still don't notify, too low)
+- Critical/High + actionable → SURFACED (always notify)
+- Medium (regardless) → SURFACED (always notify)
+
+---
+
+### Type Logic: How Does Claude Categorize Issue Type?
+
+**Code Reference:** `src/triage.ts:35` (prompt line)
+
+Claude receives categories (line 35 of `src/triage.ts`):
+
+```typescript
+// "bug" (defect), "feature" (new capability), "question" (needs clarification)
+// "docs" (documentation), "chore" (maintenance)
+```
+
+| Type | Claude Looks For | Example |
+|------|------------------|---------|
+| **bug** | Broken functionality, errors, unexpected behavior | "API returns 500 instead of JSON", "Button doesn't respond to clicks" |
+| **feature** | New capability request, enhancement | "Add dark mode", "Support OAuth login" |
+| **question** | Needs clarification, unclear issue | "Why does the app take 30 seconds to load?", "Is this expected behavior?" |
+| **docs** | Documentation missing/incorrect | "README doesn't explain config options", "API docs out of date" |
+| **chore** | Maintenance, cleanup, refactoring | "Update dependencies", "Refactor auth module" |
+
+**Slack Display:** (`src/slack.ts:55, 78, 99, 119`)
+- Shows as tag: `🏷️ bug` (line 55), etc.
+- No filtering based on type (all types can surface if priority/actionability permit)
+
+---
+
+### Likely Action Logic: What Should the Team Do Next?
+
+**Code Reference:** `src/triage.ts:38` (prompt line)
+
+Claude receives guidance (line 38 of `src/triage.ts`):
+
+```typescript
+// likelyAction: what the team should do next (e.g., "needs repro steps", 
+//               "ready to assign", "needs label clarification")
+```
+
+Claude suggests based on issue state:
+
+| Scenario | Likely Action | Why |
+|----------|---------------|-----|
+| **Bug + no repro steps** | "Request environment details and exact repro steps" | Team can't reproduce = can't fix |
+| **Bug + clear repro + actionable** | "Immediate investigation - check database connectivity" | Clear action items, ready to act |
+| **Feature request + vague** | "Clarify requirements - timeline, scope, affected users?" | Scope not defined |
+| **Question without research** | "Ask reporter what they've tried already" | Need more context |
+| **Low-priority doc fix** | "Ready for contribution - good for new contributors" | Actionable, low-risk |
+
+**Slack Display:** (`src/slack.ts:55, 78`)
+- Shows as: `_${issue.likelyAction}_` (italicized)
+- Helps team skip triage and jump to action
+
+---
+
+### Duplicate Detection Logic: How Does Claude Find Related Issues?
+
+**Code Reference:** `src/triage.ts:14-19` (recent issues list) and `src/triage.ts:40` (prompt instruction)
+
+**Step 1: Fetch context** (`src/github.ts:32-45`)
+```typescript
+// Fetch last 30 open issues with:
+// { number, title, summary (first 300 chars of body) }
+```
+
+**Step 2: Pass to Claude** (`src/triage.ts:30-31`)
+```typescript
+## Recent Open Issues (for duplicate detection)
+#1: Database connection pool exhausted
+Database connection pool has reached max connections...
+
+#3: API layer connection errors  
+Seeing 500 errors on all endpoints...
+```
+
+**Step 3: Claude analyzes** (`src/triage.ts:40`)
+```typescript
+// duplicates: array of {issueNumber, reason} for any likely 
+// duplicates/related issues from the recent list above
+```
+
+| New Issue | Recent Issues | Claude Detects | Duplicates Array |
+|-----------|---------------|-----------------|------------------|
+| "Database is down - API requests failing" | #1: "Database pool exhausted", #3: "API 500 errors" | Same root cause | `[{issueNumber: 1, reason: "Same root - database unavailable"}, {issueNumber: 3, reason: "Both report API failures"}]` |
+| "Cache server unresponsive" | #5: "Redis down", #7: "Cache timeout" | Related services | `[{issueNumber: 5, reason: "Both mention Redis/cache"}]` |
+| "Add dark mode support" | No similar feature requests | No match | `[]` (empty) |
+
+**Slack Display:** (`src/slack.ts:135-159`)
+- Shows in 🔁 "Possible Duplicates" section (line 141)
+- Format: `#X may duplicate: #Y (reason)` (line 153)
+- Always surfaces duplicates for awareness (line 64 in index.ts)
+
+---
+
+### Metrics Logic: Reviewed vs Surfaced vs Filtered
+
+**Code Reference:** `src/index.ts:56, 60, 70-74`
+
+```typescript
+// Line 56: All issues Claude analyzed
+const triageResults = await triageIssues(issuesToTriage, recentIssues);
+
+// Line 60-65: Issues that pass the filter
+const surfacedIssues = triageResults.filter(
+  (t) =>
+    (t.actionable && (t.priority === "Critical" || t.priority === "High")) ||
+    t.priority === "Medium" ||
+    (t.duplicates && t.duplicates.length > 0)
+);
+
+// Line 70-74: Calculate stats
+const stats: NotificationStats = {
+  totalReviewed: triageResults.length,
+  surfaced: surfacedIssues.length,
+  filtered: triageResults.length - surfacedIssues.length,
+};
+```
+
+**Real Example:**
+
+Poll cycle analyzes 6 issues:
+- Issue #1: Critical + actionable → ✅ SURFACED (rule 1)
+- Issue #2: High + actionable → ✅ SURFACED (rule 1)
+- Issue #3: Medium → ✅ SURFACED (rule 2)
+- Issue #4: Has duplicates → ✅ SURFACED (rule 3)
+- Issue #5: Low + non-actionable → ❌ FILTERED
+- Issue #6: Low + actionable → ❌ FILTERED
+
+**Stats Calculated** (`src/index.ts:70-74`):
+```
+totalReviewed = 6
+surfaced = 4
+filtered = 2
+```
+
+**Slack Footer** (`src/slack.ts:167`):
+```
+📊 Reviewed: 6 | Surfaced: 4 | Filtered: 2
+```
+
+**What This Means:**
+- Team reviewed 6 issues
+- 4 made it into the notification (urgent + actionable, or medium priority, or duplicates)
+- 2 were hidden because they're low priority + non-actionable (noise prevention)
+
+---
+
+## State Persistence Logic: How Does Restart Survive Work?
+
+**Code Reference:** `src/state.ts:1-85`
+
+### State File Structure
+```json
+{
+  "lastCheckedAt": "2026-09-18T10:16:35Z",
+  "issues": {
+    "1": "2026-09-18T10:15:00Z",
+    "2": "2026-09-18T10:14:00Z",
+    "3": "2026-09-18T10:13:00Z"
+  }
+}
+```
+
+### Detection Logic (`src/state.ts:50-85`)
+
+| Scenario | Detection | Action |
+|----------|-----------|--------|
+| **First run** | No `.triage-state.json` file | Create new state, triage all current issues |
+| **Issue #5 is NEW** | #5 not in `state.issues` map | TRIAGE IT (new issue detected) |
+| **Issue #2 has new comment** | `issue.updated_at` = "10:14:00Z" (same as stored) | SKIP IT (comment-only, no state change) |
+| **Issue #2 title changed** | `issue.updated_at` = "10:18:00Z" (newer than stored "10:14:00Z") | TRIAGE IT (meaningful update) |
+| **Service restarts** | Load state from disk → `lastCheckedAt = 10:16:35Z` | Next poll fetches issues since 10:16:35Z, no re-notification |
+
+### Why This Matters
+- **No re-notification on restart**: Service crashes, restarts → loads saved timestamp → only fetches NEW issues since last check
+- **Comment-only updates ignored**: Issue triaged, user adds comment → service doesn't re-triage (no Slack spam)
+- **Meaningful updates detected**: Issue triaged, title changes → service re-triages with new context
+
+---
+
+## Summary: Decision Tree
+
+```
+New issue arrives in GitHub
+  ↓
+[Fetch and compare timestamps] (src/state.ts:50)
+  ├─ NEW → proceed to triage
+  └─ Updated (not comment-only) → proceed to triage
+  
+[Triage with Claude] (src/triage.ts:10)
+  ↓ Gets: Priority, Type, Actionable, Likely Action, Duplicates
+  
+[Apply filter logic] (src/index.ts:60-65)
+  ├─ (Critical OR High) + Actionable → ✅ SURFACED as 🔴 Expanded
+  ├─ Medium (any actionability) → ✅ SURFACED as 🟡 Bullet
+  ├─ Has Duplicates → ✅ SURFACED in 🔁 Section
+  └─ Low + Non-Actionable → ❌ FILTERED
+  
+[Build Slack message] (src/slack.ts:12-177)
+  ├─ Organize by priority/type/duplicates
+  ├─ Add stats footer: Reviewed | Surfaced | Filtered
+  └─ Send to Slack (src/slack.ts:179)
+  
+[Update state] (src/state.ts)
+  ├─ lastCheckedAt = now
+  └─ issues map = updated with all issue timestamps
+  
+[Wait for next poll] (src/index.ts:108)
+  └─ 30 seconds → repeat
+```
+
+---
+
 ## Setup & Run
 
 ### Prerequisites
@@ -337,36 +628,113 @@ Slack Channel
 - GitHub repo + Personal Access Token (classic, `repo` scope)
 - Slack workspace + Bot token (chat:write scope)
 - Anthropic API key (Claude access)
+- GitHub CLI (`gh`) for cleanup (optional)
 
-### Quick Start
+### Quick Start (Fresh Repository)
 
-1. **Clone/setup:**
-   ```bash
-   cd percollate-github
-   npm install
-   ```
+#### Option A: Automated Clean Start (Recommended)
 
-2. **Configure `.env`:**
-   ```bash
-   cp .env.example .env
-   # Fill in:
-   # GITHUB_TOKEN=ghp_...
-   # GITHUB_OWNER=saxenasanket
-   # GITHUB_REPO=percollate-slack
-   # SLACK_BOT_TOKEN=xoxb-...
-   # SLACK_CHANNEL_ID=C...
-   # ANTHROPIC_API_KEY=sk-ant-...
-   # POLL_INTERVAL_SECONDS=30
-   ```
+```bash
+cd percollate-github
 
-3. **Run:**
-   ```bash
-   npm run dev
-   ```
+# First time setup only:
+npm install
+cp .env.example .env
+# Edit .env with your credentials
 
-4. **Create a test issue in GitHub** (e.g., "CRITICAL: Service is down")
+# Then start fresh anytime:
+./clean-start.sh
+```
 
-5. **Check Slack** for the digest message
+The `clean-start.sh` script:
+- ✅ Stops any running processes
+- ✅ Removes compiled files (`dist/`)
+- ✅ Clears polling state (`.triage-state.json`)
+- ✅ Closes all open issues in your repository
+- ✅ Rebuilds the project
+- ✅ Starts the polling agent
+
+#### Option B: Manual Setup
+
+**1. Delete all existing issues:**
+```bash
+# Using GitHub CLI
+for i in {1..100}; do
+  gh issue close $i --repo YOUR_OWNER/YOUR_REPO 2>/dev/null
+done
+```
+
+**2. Clean local state:**
+```bash
+cd percollate-github
+rm -rf dist .triage-state.json
+```
+
+**3. First-time setup:**
+```bash
+npm install
+cp .env.example .env
+
+# Edit .env with your credentials:
+# GITHUB_TOKEN=ghp_...
+# GITHUB_OWNER=your_username
+# GITHUB_REPO=your_repo
+# SLACK_BOT_TOKEN=xoxb-...
+# SLACK_CHANNEL_ID=C...
+# ANTHROPIC_API_KEY=sk-ant-...
+# POLL_INTERVAL_SECONDS=30
+```
+
+**4. Run the system:**
+```bash
+npm run dev
+```
+
+**Expected output on first run:**
+```
+🚀 GitHub Issue Triage Agent Starting
+Repository: your_owner/your_repo
+Poll interval: 30s
+
+[2026-09-18T...] Starting poll...
+Last checked at: 2026-09-18T...
+Fetched 0 updated/new issues
+No new or updated issues.
+State updated and saved.
+
+[2026-09-18T... +30s] Starting poll...
+Fetched 0 updated/new issues
+No new or updated issues.
+```
+
+**5. Create your first test issue:**
+
+In GitHub, create a new issue:
+- **Title:** `CRITICAL: Database Connection Pool Exhausted`
+- **Body:** `Database server is completely offline. All API requests returning 500 errors. Production impact: 100% of users affected.`
+
+**6. Check Slack:**
+
+Within 30 seconds, you should see the triage digest in your Slack channel showing:
+```
+🔴 Needs Attention Now (1)
+
+#1: CRITICAL: Database Connection Pool Exhausted
+Immediate incident response required
+🏷️ bug
+
+────────────────────────
+📊 Reviewed: 1 | Surfaced: 1 | Filtered: 0
+```
+
+### After First Run
+
+The system now:
+- ✅ Tracks all issues in `.triage-state.json`
+- ✅ Polls every 30 seconds for new/updated issues
+- ✅ Only notifies NEW issues (created after initialization)
+- ✅ Prevents re-notification on restarts
+- ✅ Intelligently filters low-priority, non-actionable issues
 
 ---
 
@@ -442,6 +810,93 @@ npm run dev
 ```
 
 Then create test issues in GitHub and check Slack for digests.
+
+---
+
+## Example Issues & Expected Slack Output
+
+### Test Issues Created
+
+Run this to see the system in action:
+
+```bash
+npm run dev
+```
+
+**Test Issues (#16-20):**
+
+| # | Title | Input | Expected Triage | Expected Slack |
+|---|-------|-------|-----------------|---|
+| **16** | CRITICAL: Production Database Offline | Clear description, production impact, all users blocked | Priority: `Critical`, Actionable: `true` | 🔴 **Needs Attention Now** (expanded) |
+| **17** | HIGH: Dashboard queries degraded from 2s to 15s | Clear metrics, impact stated, recent changes mentioned | Priority: `High`, Actionable: `true` | 🔴 **Needs Attention Now** (expanded) |
+| **18** | Add dark mode theme support | Feature request with design + effort estimate | Priority: `Medium`, Actionable: `true` | 🟡 **Worth a Look** (bullet) |
+| **19** | App is slow sometimes | Vague, no specific details, no actionable info | Priority: `Low`, Actionable: `false` | ⚪ **Filtered** (not shown, too vague) |
+| **20** | Performance issue with dashboard loading | Similar to #17 (duplicate) | Priority: `High`, Duplicates: `[#17]` | 🔁 **Possible Duplicates** (flagged as related to #17) |
+
+### Expected Slack Output
+
+When you run `npm run dev` and the system triages the 5 test issues, you should see something like:
+
+```
+🤖 GitHub Issue Triage Report
+
+🔴 Needs Attention Now (2)
+
+#16: CRITICAL: Production Database Offline
+Database server is completely down. All API requests returning 500 errors.
+Immediate incident response required
+🏷️ bug
+
+────────────────────────
+
+#17: HIGH: Dashboard queries degraded from 2s to 15s
+Dashboard is now extremely slow. Query performance has degraded significantly.
+Investigate recent changes to dashboard query logic
+🏷️ bug
+
+────────────────────────
+
+🟡 Worth a Look (1)
+
+• #18: Add dark mode theme support
+
+────────────────────────
+
+🔁 Possible Duplicates
+
+#20 may duplicate: #17 - Both report dashboard/query performance degradation issues
+
+────────────────────────
+
+📊 Reviewed: 5 | Surfaced: 4 | Filtered: 1
+```
+
+### Why These Results?
+
+| Issue | Why Surfaced/Filtered | Logic |
+|-------|---|---|
+| **#16** | ✅ Surfaced (🔴 Expanded) | Critical + actionable → highest priority, full detail |
+| **#17** | ✅ Surfaced (🔴 Expanded) | High + actionable → urgent, needs attention |
+| **#18** | ✅ Surfaced (🟡 Bullet) | Medium priority → always surfaced, but collapsed |
+| **#19** | ❌ Filtered | Low + non-actionable → no specific details to act on, noise prevention |
+| **#20** | ✅ Surfaced (🔁 Section) | Duplicate flag → always surfaced for consolidation awareness |
+
+### How to Verify
+
+1. **Run the system:**
+   ```bash
+   npm run dev
+   ```
+
+2. **Wait ~30 seconds** for first poll to initialize state
+
+3. **Check your Slack channel** `#C0C3NQ8FGE4` for the triage digest
+
+4. **Verify the output matches** the expected structure above
+
+5. **Test filtering:** Notice that #19 (vague, non-actionable) is NOT shown in Slack but counted in "Reviewed: 5 | Filtered: 1"
+
+6. **Test duplicate detection:** Notice that #20 is flagged as possibly duplicating #17
 
 ---
 

@@ -785,31 +785,67 @@ The system now:
 
 ## Testing
 
-### Run Test Suite
+### Unit Tests
 
 ```bash
 npm test
 ```
 
-**Test cases covered:**
-- ✅ Critical priority issue surfaces with expanded detail
-- ✅ High priority issue surfaces with expanded detail
-- ✅ Medium priority issue surfaces as bullet point
-- ✅ Low priority issue is filtered out (not surfaced)
-- ✅ Duplicate detection identifies related issues
-- ✅ Non-actionable issues are correctly filtered
-- ✅ Slack notification blocks generated correctly
-- ✅ Channel ID set and messages formatted properly
+Validates core logic:
+- ✅ Critical priority detection
+- ✅ High priority detection
+- ✅ Medium priority detection
+- ✅ Low priority filtering
+- ✅ Duplicate detection
+- ✅ Non-actionable filtering
+- ✅ Slack notification formatting
+- ✅ Footer stats calculation
 
-All tests pass and validate the core triage and notification logic.
+### Live System Demo (Recommended)
 
-### Run Agent
+**See `SYSTEM_DEMO.md` for a complete guided walkthrough:**
 
+Shows all system capabilities in sequence by creating issues one after another:
+
+1. **Step 1:** Critical issue → Shows 🔴 expanded detail
+2. **Step 2:** High issue → Groups with Critical
+3. **Step 3:** Medium issue → Shows 🟡 bullets
+4. **Step 4:** Low + actionable → Filters (noise prevention)
+5. **Step 5:** Low + non-actionable → Filters (too vague)
+6. **Step 6:** Duplicate issue → Flags in 🔁 section
+7. **Step 7:** Production incident → Multiple duplicates detected
+
+**Each step shows:**
+- Exact issue content to create
+- Console output you'll see
+- Slack message you'll receive
+- What's being demonstrated
+- Verification checklist
+
+**Run the demo:**
 ```bash
-npm run dev
+./clean-start.sh
+# Then follow SYSTEM_DEMO.md step by step
+# Takes ~20 minutes to see all capabilities
 ```
 
-Then create test issues in GitHub and check Slack for digests.
+### Reference: All Test Scenarios
+
+**See `TEST_CASES.md` for 11 individual test cases:**
+
+Reference guide with copy/paste content for:
+- Critical + Actionable issues
+- High priority issues
+- Medium priority issues
+- Low priority issues (actionable & non-actionable)
+- Duplicate detection
+- Feature requests
+- Questions/clarifications
+- Documentation issues
+- Production incidents with multiple duplicates
+- Chore/maintenance tasks
+
+Includes quick reference filtering table showing which issues surface vs filter.
 
 ---
 

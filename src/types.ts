@@ -24,6 +24,7 @@ export interface TriageResult {
     issueNumber: number;
     reason: string;
   }[];
+  daysStale?: number;
 }
 
 export interface StateFile {

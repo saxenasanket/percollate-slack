@@ -11,6 +11,11 @@ export async function triageIssue(
   issue: Issue,
   recentIssues: Array<{ number: number; title: string; summary: string }>
 ): Promise<TriageResult> {
+  // Calculate how many days since last update (for stale detection)
+  const updatedAtTime = new Date(issue.updated_at).getTime();
+  const nowTime = new Date().getTime();
+  const daysStale = Math.floor((nowTime - updatedAtTime) / (1000 * 60 * 60 * 24));
+
   const recentIssuesList = recentIssues
     .map(
       (i) =>
@@ -32,6 +37,7 @@ ${recentIssuesList}
 
 Analyze this issue and respond with a JSON object containing:
 1. priority: "Critical" (blocks production/core feature), "High" (significant impact or bug), "Medium" (normal priority), or "Low" (minor/nice-to-have)
+   - IMPORTANT: If the issue has labels like "critical", "p0", "production", or "blocking", priority MUST be at least "High" (override content analysis if needed)
 2. type: "bug" (defect), "feature" (new capability), "question" (needs clarification), "docs" (documentation), or "chore" (maintenance)
 3. actionable: true if the issue has enough information to act on it
 4. actionReason: brief explanation for actionable decision
@@ -81,6 +87,7 @@ Respond ONLY with valid JSON, no other text.`;
     likelyAction: triage.likelyAction,
     summary: triage.summary,
     duplicates: triage.duplicates || [],
+    daysStale: daysStale > 0 ? daysStale : undefined,
   };
 }
 

@@ -61,19 +61,22 @@ async function poll(): Promise<void> {
 
     // Filter for notifications (exclude non-actionable low priority)
     const surfacedIssues = triageResults.filter((t) => {
+      const isStaleHighPriority = (t.daysStale ?? 0) >= 3 && (t.priority === "Critical" || t.priority === "High");
       const matches =
         (t.actionable && (t.priority === "Critical" || t.priority === "High")) ||
         t.priority === "Medium" ||
-        (t.duplicates && t.duplicates.length > 0);
+        (t.duplicates && t.duplicates.length > 0) ||
+        isStaleHighPriority;
 
       // Debug logging
       if (!matches) {
         console.log(
-          `  ❌ Issue #${t.issueNumber} filtered: priority=${t.priority}, actionable=${t.actionable}, duplicates=${t.duplicates?.length || 0}`
+          `  ❌ Issue #${t.issueNumber} filtered: priority=${t.priority}, actionable=${t.actionable}, duplicates=${t.duplicates?.length || 0}, stale=${t.daysStale || 0}d`
         );
       } else {
+        const reason = isStaleHighPriority ? " (stale reminder)" : "";
         console.log(
-          `  ✅ Issue #${t.issueNumber} surfaced: priority=${t.priority}, actionable=${t.actionable}, duplicates=${t.duplicates?.length || 0}`
+          `  ✅ Issue #${t.issueNumber} surfaced: priority=${t.priority}, actionable=${t.actionable}, duplicates=${t.duplicates?.length || 0}, stale=${t.daysStale || 0}d${reason}`
         );
       }
 

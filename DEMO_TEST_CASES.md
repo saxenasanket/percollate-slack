@@ -1,376 +1,289 @@
-# GitHub Issue Triage Agent - Quick Demo Test Cases
+# GitHub Issue Triage Agent - Demo Test Cases
 
-**Ordered to demonstrate all system capabilities sequentially.**
-
-Start: `./clean-start.sh`
+**Setup:** `./clean-start.sh` (Set `POLL_INTERVAL_SECONDS=5` in .env for faster polling)
 
 ---
 
-# Phase 1: New Issue Detection & Triage
-
-## Case 1: Critical Issue (New)
+## Case 1: Critical Issue Detection
 
 **Create:**
 ```
-Title: CRITICAL: Production Database Offline - All Users Blocked
-Body:
-Database server is completely down.
-All API requests returning 500 errors.
-Impact: 100% of users blocked.
+Title: CRITICAL: Production Database Offline
+Body: Database server down. All API requests failing.
 ```
-
-**Wait 30 sec for next poll...**
 
 **Expect Console:**
 ```
-Fetched 1 updated/new issues
-Issues to triage: 1 new, 0 updated
-Triaged 1 issues
-✅ Issue #1 surfaced: priority=Critical, actionable=true, duplicates=0
-Surfacing 1 of 1 issues
-✅ Notification sent to Slack
+✅ Issue #1 surfaced: priority=Critical, actionable=true
 ```
 
 **Expect Slack:**
 ```
 🔴 Needs Attention Now (1)
-
-#1: CRITICAL: Production Database Offline - All Users Blocked
+#1: CRITICAL: Production Database Offline
 Immediate incident response required
 🏷️ bug
-
-────────────────────────
-📊 Reviewed: 1 | Surfaced: 1 | Filtered: 0
 ```
 
-**Demo Point:** ✅ New critical issues are detected and surfaced immediately
+**Capability:** ✅ Monitors GitHub, detects Critical issues, surfaces instantly
 
 ---
 
-# Phase 2: Update Detection & Re-Triage
+## Case 2: Priority Filtering - High
 
-## Case 2: Edit Critical Issue (Change Title/Body)
-
-**Wait 2 min, then EDIT issue #1:**
-
-Go to GitHub, change it to:
+**Create:**
 ```
-Title: CRITICAL: Production Database Offline - PARTIAL RECOVERY
-Body:
-Database server is partially recovering.
-50% of API requests still failing.
-Impact: 50% of users can access.
-Status: Recovery in progress - monitoring closely.
+Title: HIGH: Dashboard queries degraded 7.5x slower
+Body: Query time: 2s → 15s after recent deploy
 ```
-
-**Wait 30 sec for next poll...**
-
-**Expect Console:**
-```
-Fetched 1 updated/new issues
-Issues to triage: 0 new, 1 updated  ← DETECTED AS UPDATED!
-Triaged 1 issues
-✅ Issue #1 surfaced: priority=Critical, actionable=true, duplicates=0
-Surfacing 1 of 1 issues
-✅ Notification sent to Slack
-```
-
-**Expect Slack:**
-```
-🔴 Needs Attention Now (1)
-
-#1: CRITICAL: Production Database Offline - PARTIAL RECOVERY
-Immediate incident response required
-🏷️ bug
-
-────────────────────────
-📊 Reviewed: 1 | Surfaced: 1 | Filtered: 0
-```
-
-**Demo Point:** ✅ System detects updates and re-triages (content changed but still Critical)
-
----
-
-## Case 3: Edit Critical Issue Again (No Change to Priority)
-
-**Wait 2 min, then EDIT issue #1 again:**
-
-Only change punctuation/formatting, NOT the core content:
-```
-Title: CRITICAL: Production Database Offline - PARTIAL RECOVERY
-Body:
-Database server is partially recovering.
-- 50% of API requests still failing
-- Impact: 50% of users can access
-- Status: Recovery in progress - monitoring closely.
-```
-
-**Wait 30 sec for next poll...**
-
-**Expect Console:**
-```
-Fetched 1 updated/new issues
-Issues to triage: 0 new, 1 updated
-Triaged 1 issues
-✅ Issue #1 surfaced: priority=Critical, actionable=true, duplicates=0
-Surfacing 1 of 1 issues
-✅ Notification sent to Slack
-```
-
-**Expect Slack:**
-```
-(Same as before - critical issue still showing)
-```
-
-**Demo Point:** ✅ System re-triages on ANY update (even formatting), always sends notification if priority/actionability changes
-
----
-
-# Phase 3: Priority Filtering
-
-## Case 4: High Priority Issue (New)
-
-**Wait 2 min, Create:**
-```
-Title: HIGH: Dashboard queries degraded from 2s to 15s
-Body:
-Dashboard performance regressed significantly.
-Query time: 2s → 15s (7.5x slower)
-Started after recent deploy.
-```
-
-**Wait 30 sec...**
-
-**Expect Console:**
-```
-Fetched 1 updated/new issues
-Issues to triage: 1 new, 0 updated
-✅ Issue #2 surfaced: priority=High, actionable=true, duplicates=0
-```
-
-**Expect Slack:**
-```
-🔴 Needs Attention Now (2)
-
-#1: CRITICAL: Production Database Offline...
-#2: HIGH: Dashboard queries degraded from 2s to 15s
-Investigate recent changes to dashboard query logic
-🏷️ bug
-
-────────────────────────
-📊 Reviewed: 2 | Surfaced: 2 | Filtered: 0
-```
-
-**Demo Point:** ✅ High priority grouped with Critical in same section
-
----
-
-## Case 5: Medium Priority Issue (New)
-
-**Wait 2 min, Create:**
-```
-Title: Add dark mode theme support
-Body:
-Users requested dark mode.
-Design mockups available.
-Effort: 2 sprints.
-```
-
-**Wait 30 sec...**
 
 **Expect Slack:**
 ```
 🔴 Needs Attention Now (2)
 #1: CRITICAL: Production Database...
 #2: HIGH: Dashboard queries...
-
-────────────────────────
-
-🟡 Worth a Look (1)
-
-• #3: Add dark mode theme support
-
-────────────────────────
-📊 Reviewed: 3 | Surfaced: 3 | Filtered: 0
 ```
 
-**Demo Point:** ✅ Medium priority shows as bullets (less visual weight)
+**Capability:** ✅ Triage priority correctly, group by urgency
 
 ---
 
-# Phase 4: Noise Prevention (Filtering)
+## Case 3: Priority Filtering - Medium
 
-## Case 6: Low + Actionable (Should Filter)
-
-**Wait 2 min, Create:**
+**Create:**
 ```
-Title: Fix typo in welcome page
-Body:
-Location: line 45
-Text: "Welcom" should be "Welcome"
-```
-
-**Wait 30 sec...**
-
-**Expect Console:**
-```
-Fetched 1 updated/new issues
-Issues to triage: 1 new, 0 updated
-Triaged 1 issues
-❌ Issue #4 filtered: priority=Low, actionable=true, duplicates=0
-Surfacing 2 of 3 issues
+Title: Update API documentation
+Body: Docs outdated for v2 endpoints. Design ready.
 ```
 
 **Expect Slack:**
 ```
-(Same as before - no new issues shown)
+🔴 Needs Attention Now (2)
+#1: CRITICAL...
+#2: HIGH...
+
+🟡 Worth a Look (1)
+• #3: Update API documentation
+```
+
+**Capability:** ✅ Visual hierarchy reduces cognitive load
+
+---
+
+## Case 4: Noise Prevention - Low + Actionable
+
+**Create:**
+```
+Title: Fix typo in welcome page
+Body: Change "Welcom" to "Welcome" on line 45
+```
+
+**Expect Console:**
+```
+❌ Issue #4 filtered: priority=Low, actionable=true
+```
+
+**Expect Slack Footer:**
+```
 📊 Reviewed: 4 | Surfaced: 3 | Filtered: 1
 ```
 
-**Demo Point:** ✅ Low priority + actionable still filtered (noise prevention)
+**Capability:** ✅ Filters low-priority noise, maintains transparency
 
 ---
 
-## Case 7: Low + Non-Actionable (Should Filter)
+## Case 5: Actionability Judgment
 
-**Wait 2 min, Create:**
+**Create:**
 ```
-Title: App is slow sometimes
-Body:
-The app feels slow.
-Not sure what's slow.
+Title: App feels slow
+Body: Sometimes slow. Not sure what or when.
 ```
-
-**Wait 30 sec...**
 
 **Expect Console:**
 ```
-❌ Issue #5 filtered: priority=Low, actionable=false, duplicates=0
-Surfacing 2 of 4 issues
+❌ Issue #5 filtered: priority=Low, actionable=false
 ```
 
-**Expect Slack:**
-```
-(Same as before)
-📊 Reviewed: 5 | Surfaced: 3 | Filtered: 2
-```
-
-**Demo Point:** ✅ Vague non-actionable issues filtered automatically
+**Capability:** ✅ Judges actionability, prevents vague work
 
 ---
 
-# Phase 5: Advanced Features
+## Case 6: Duplicate Detection
 
-## Case 8: Duplicate Detection
-
-**Wait 2 min, Create:**
+**Create:**
 ```
-Title: Performance issue with dashboard loading
-Body:
-Dashboard takes 20 seconds to load.
-Very slow compared to before.
+Title: Dashboard performance issue
+Body: Dashboard loading slow, performance degraded.
 ```
 
-**Wait 30 sec...**
+**Expect Console:**
+```
+✅ Issue #6 surfaced: priority=High, duplicates=1
+```
 
 **Expect Slack:**
 ```
 🔁 Possible Duplicates
-
-#6 may duplicate: #2 - Both report dashboard performance degradation issues
+#6 may duplicate: #2 - Both report dashboard performance degradation
 ```
 
-**Demo Point:** ✅ Claude detects semantic similarity across issues
+**Capability:** ✅ Detects semantic duplicates, prevents redundant work
 
 ---
 
-## Case 9: Production Incident (Multiple Duplicates)
+## Case 7: Enhancement 1 - Label as Priority Signal
 
-**Create 3 issues rapidly (1 min apart):**
-
-**Issue A:**
+**Create:**
 ```
-Title: CRITICAL: API auth failing - cannot login
-Body:
-Auth endpoint returning 500 errors.
-All users blocked.
+Title: UI feels sluggish
+Body: UI renders slowly sometimes.
+Labels: [critical, performance]
 ```
 
-**Issue B (1 min later):**
+**Expect Console:**
 ```
-Title: Users reporting login issues
-Body:
-Can't login. Getting errors.
+✅ Issue #7 surfaced: priority=Critical, actionable=false
+(Vague title but [critical] label → boosted to Critical)
 ```
-
-**Issue C (1 min later):**
-```
-Title: CRITICAL: Authentication system down
-Body:
-Nobody can login. Auth is broken.
-```
-
-**Wait 30 sec...**
 
 **Expect Slack:**
 ```
-🔴 Needs Attention Now (3)
-#1: CRITICAL: Production Database...
-#2: HIGH: Dashboard queries...
-#7: CRITICAL: API auth failing...
+#7: UI feels sluggish
+Identify performance bottleneck in UI rendering
+🏷️ bug
+```
 
-────────────────────────
+**Capability:** ✅ Respects GitHub labels, doesn't ignore team's taxonomy
 
+---
+
+## Case 8: Enhancement 2 - Stale Critical Reminder
+
+**Setup:** Edit `.triage-state.json` to make Issue #1 look 4 days old:
+```json
+{
+  "lastCheckedAt": "2026-09-20T10:00:00Z",
+  "issues": {
+    "1": "2026-09-16T10:00:00Z"  ← 4 days ago
+  }
+}
+```
+
+**Restart system and wait for poll...**
+
+**Expect Console:**
+```
+✅ Issue #1 surfaced: priority=Critical, stale=4d (stale reminder)
+```
+
+**Expect Slack:**
+```
+🔴 Needs Attention Now (1)
+#1: CRITICAL: Production Database Offline
+Immediate incident response required
+🏷️ bug
+⏰ Last updated 4 days ago
+```
+
+**Capability:** ✅ Resurfaces stale Critical issues, prevents forgotten work
+
+---
+
+## Summary: All Capabilities
+
+| # | Capability | Demo Case | Result |
+|---|-----------|-----------|--------|
+| 1 | Monitor & detect new issues | Case 1 | Critical surfaces instantly |
+| 2 | Triage 5 dimensions (priority/type/actionable/action/duplicates) | Cases 1-6 | Correct categorization |
+| 3 | Priority-based filtering | Cases 1-5 | Critical/High shown, Low filtered |
+| 4 | Visual hierarchy | Cases 2-3 | 🔴 → 🟡 → ⚪ |
+| 5 | Noise prevention | Cases 4-5 | Vague/Low filtered automatically |
+| 6 | Duplicate detection | Case 6 | Related issues flagged |
+| 7 | Label respect | Case 7 | [critical] label boosted priority |
+| 8 | Stale reminders | Case 8 | 3+ day old Critical resurfaces |
+| 9 | Transparency | All | Footer: Reviewed \| Surfaced \| Filtered |
+
+**Total: 8 capabilities demonstrated in 8 cases**
+
+---
+
+## Quick Demo Flow (5 min)
+
+1. Create Critical issue → Shows in Slack 🔴
+2. Create High issue → Grouped with Critical
+3. Create Medium issue → Collapsed bullets 🟡
+4. Create Low issue → Filtered (show footer)
+5. Create duplicate → 🔁 Section appears
+6. Create issue + label [critical] → Boosted to Critical (show label respect)
+7. Make issue look 4 days old → Re-surfaces + ⏰ icon (show stale reminder)
+
+Each step takes ~1 minute. Console + Slack visible side-by-side.
+
+---
+
+## Expected Slack Evolution
+
+```
+Step 1:
+🔴 Needs Attention Now (1)
+#1: CRITICAL...
+📊 Reviewed: 1 | Surfaced: 1 | Filtered: 0
+
+Step 2:
+🔴 Needs Attention Now (2)
+#1: CRITICAL...
+#2: HIGH...
+📊 Reviewed: 2 | Surfaced: 2 | Filtered: 0
+
+Step 3:
+🔴 Needs Attention Now (2)
+#1: CRITICAL...
+#2: HIGH...
 🟡 Worth a Look (1)
-• #3: Add dark mode theme support
+• #3: MEDIUM...
+📊 Reviewed: 3 | Surfaced: 3 | Filtered: 0
 
-────────────────────────
+Step 4:
+(Same as Step 3, but footer: Reviewed: 4 | Filtered: 1)
 
-🔁 Possible Duplicates
+Step 5:
+(Adds 🔁 Possible Duplicates section)
 
-#8 may duplicate: #7 - Similar login failures
-#9 may duplicate: #7 - Same auth system down
+Step 6:
+#7 appears in Critical section (label boost)
 
-────────────────────────
-📊 Reviewed: 9 | Surfaced: 6 | Filtered: 3
+Step 7:
+#1 shows ⏰ Last updated 4 days ago
 ```
 
-**Demo Point:** ✅ Multiple duplicates consolidated and flagged for merging
+---
+
+## Key Talking Points
+
+- **Monitoring:** Real-time GitHub issue detection
+- **Triage:** 5-dimension analysis (priority/type/actionable/action/duplicates)
+- **Filtering:** Smart noise prevention (not dumb rules)
+- **Hierarchy:** Visual organization reduces cognitive load
+- **Labels:** Respects team's existing taxonomy
+- **Stale:** Prevents Critical work from being forgotten
+- **Transparency:** Footer shows what was filtered/surfaced/reviewed
 
 ---
 
-# Summary: All Capabilities Demonstrated
+## Console Commands for Demo
 
-| Phase | Case | Action | Result | Demo Point |
-|-------|------|--------|--------|------------|
-| 1 | 1 | Create critical | Surfaces | 🔴 New issues detected |
-| 2 | 2 | Edit critical | Re-triaged | 📝 Updates detected |
-| 2 | 3 | Edit critical again | Re-triaged | 🔄 Any change triggers re-triage |
-| 3 | 4 | Create high | Surfaces | 🔴 Priority grouping |
-| 3 | 5 | Create medium | Surfaces | 🟡 Visual hierarchy |
-| 4 | 6 | Create low+actionable | Filtered | ⚪ Noise prevention |
-| 4 | 7 | Create low+vague | Filtered | ⚪ Actionability filter |
-| 5 | 8 | Create duplicate | Flagged | 🔁 Semantic detection |
-| 5 | 9 | Create 3 similar | Consolidated | 🔁 Multiple duplicates |
+```bash
+# Before demo
+./clean-start.sh
+# Edit .env: POLL_INTERVAL_SECONDS=5
+npm run build
+npm run dev
 
----
+# During demo: watch console output
+# Copy/paste to show: ✅ Issue #X surfaced, ❌ Issue #Y filtered
 
-## What You'll Demonstrate (In Order)
+# After demo
+npm run test  # Show: 6/6 tests passing
+```
 
-✅ **New issue detection** (Case 1)  
-✅ **Update detection** (Case 2-3)  
-✅ **Re-triage on updates** (Cases 2-3)  
-✅ **Priority filtering** (Cases 4-5)  
-✅ **Visual hierarchy** (🔴→🟡→⚪)  
-✅ **Noise prevention** (Cases 6-7)  
-✅ **Actionability filtering** (Cases 6-7)  
-✅ **Duplicate detection** (Case 8)  
-✅ **Consolidation** (Case 9)  
-✅ **Transparency** (Footer: Reviewed|Surfaced|Filtered)  
-
-**Total time:** ~25 minutes  
-**Total issues:** 9 (1 critical edited twice, 8 new)  
-**Slack messages:** 5 (progressive updates)  
-**Critical concept demonstrated:** System continuously monitors and re-triages!
-
-👇

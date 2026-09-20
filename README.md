@@ -936,6 +936,64 @@ Investigate recent changes to dashboard query logic
 
 ---
 
+## V2.0 Enhancements: Smart Workflow Integration
+
+The latest version includes 3 intelligent enhancements that respect team workflows:
+
+### Enhancement 1: GitHub Labels as Priority Signals ⭐
+
+**What it does:** Issues with labels like `critical`, `p0`, `production`, or `blocking` automatically get boosted to at least High priority, even if the content is vague.
+
+**Why it matters:** Respects the team's existing GitHub label taxonomy. If someone already labeled something as critical, we don't re-triage it as Medium.
+
+**Example:**
+```
+Issue title: "UI feels slow"
+Labels: [critical, performance]
+→ Priority boosted to: Critical (label respected)
+```
+
+**How it works:**
+- Labels are already fetched from GitHub API
+- Claude prompt includes instruction: "If labeled 'critical'|'p0'|'production', priority >= High"
+- Works with any label naming convention
+
+---
+
+### Enhancement 2: Stale Critical Issue Reminder ⏰
+
+**What it does:** Critical/High priority issues untouched for 3+ days get re-surfaced as reminders to check status.
+
+**Why it matters:** Prevents important work from going dark. If a Critical issue hasn't been updated in days, remind the team to check on it.
+
+**Example:**
+```
+Issue #15 (Critical, created 4 days ago, no updates)
+→ Re-surfaces in Slack with ⏰ icon
+→ Console: "Issue #15 surfaced (stale reminder)"
+```
+
+**How it works:**
+- On each poll, calculate days since last update
+- If (daysStale >= 3 AND priority is Critical/High), surface it
+- Slack shows: "⏰ Last updated 4 days ago"
+
+**Config:** Adjust stale threshold with `STALE_THRESHOLD_HOURS` in `.env` (default: 72 hours / 3 days)
+
+---
+
+### Combined Effect: Intelligent Workflow Respect
+
+These 2 enhancements work together to respect how teams actually work:
+
+| Scenario | Behavior | Benefit |
+|----------|----------|---------|
+| Vague issue + `critical` label | Surfaces as Critical | Labels represent intent |
+| Critical issue 4 days old, no update | Re-surfaces with reminder | Prevent forgotten work |
+| Medium priority issue | Surfaces (business as usual) | Normal flow unchanged |
+
+---
+
 ## Tech Stack
 
 - **Language:** TypeScript (strict mode)

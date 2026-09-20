@@ -48,11 +48,12 @@ export function buildNotificationBlocks(
     });
 
     for (const issue of critical) {
+      const staleIndicator = issue.daysStale ? `\n⏰ Last updated ${issue.daysStale} days ago` : "";
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}`,
+          text: `*<https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
         },
       });
     }
@@ -71,11 +72,12 @@ export function buildNotificationBlocks(
     });
 
     for (const issue of high) {
+      const staleIndicator = issue.daysStale ? `\n⏰ Last updated ${issue.daysStale} days ago` : "";
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}`,
+          text: `*<https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
         },
       });
     }

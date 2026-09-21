@@ -2,6 +2,12 @@ import { WebClient } from "@slack/web-api";
 import { TriageResult, NotificationStats } from "./types";
 
 const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+const GITHUB_OWNER = process.env.GITHUB_OWNER || "";
+const GITHUB_REPO = process.env.GITHUB_REPO || "";
+
+const getGitHubIssueUrl = (issueNumber: number): string => {
+  return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/issues/${issueNumber}`;
+};
 
 export interface SlackBlocksPayload {
   channel: string;
@@ -53,7 +59,7 @@ export function buildNotificationBlocks(
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
+          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
         },
       });
     }
@@ -77,7 +83,7 @@ export function buildNotificationBlocks(
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
+          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
         },
       });
     }
@@ -98,7 +104,7 @@ export function buildNotificationBlocks(
     const mediumText = medium
       .map(
         (issue) =>
-          `• <https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}>: ${issue.summary}`
+          `• <${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}>: ${issue.summary}`
       )
       .join("\n");
 
@@ -118,7 +124,7 @@ export function buildNotificationBlocks(
     const lowText = low
       .map(
         (issue) =>
-          `• <https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}>: ${issue.summary}`
+          `• <${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}>: ${issue.summary}`
       )
       .join("\n");
 
@@ -146,13 +152,13 @@ export function buildNotificationBlocks(
 
     for (const issue of duplicateIssues) {
       const dupText = (issue.duplicates || [])
-        .map((d) => `#${d.issueNumber}: ${d.reason}`)
+        .map((d) => `<${getGitHubIssueUrl(d.issueNumber)}|#${d.issueNumber}>: ${d.reason}`)
         .join(", ");
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `<https://github.com/issue/${issue.issueNumber}|#${issue.issueNumber}> may duplicate: ${dupText}`,
+          text: `<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}> may duplicate: ${dupText}`,
         },
       });
     }

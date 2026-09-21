@@ -44,7 +44,9 @@ async function poll(): Promise<void> {
       (i) => newIssueNumbers.includes(i.number) || updatedIssueNumbers.includes(i.number)
     );
 
-    console.log(`Issues to triage: ${issuesToTriage.length} new, ${updatedIssueNumbers.length} updated`);
+    console.log(`Issues to triage: ${newIssueNumbers.length} new, ${updatedIssueNumbers.length} updated`);
+    if (newIssueNumbers.length > 0) console.log(`  New: #${newIssueNumbers.join(", #")}`);
+    if (updatedIssueNumbers.length > 0) console.log(`  Updated: #${updatedIssueNumbers.join(", #")}`);
 
     if (issuesToTriage.length === 0) {
       console.log("No new or meaningfully updated issues.");
@@ -95,7 +97,9 @@ async function poll(): Promise<void> {
     // Send Slack notification if there are issues to surface
     if (surfacedIssues.length > 0) {
       const payload = buildNotificationBlocks(surfacedIssues, stats);
-      await sendNotification(payload);
+      payload.ts = state.lastMessageTs;
+      const messageTs = await sendNotification(payload);
+      state.lastMessageTs = messageTs;
     } else {
       console.log("No issues to surface after filtering.");
     }

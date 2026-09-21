@@ -25,11 +25,13 @@ export interface TriageResult {
     reason: string;
   }[];
   daysStale?: number;
+  messageTs?: string;
 }
 
 export interface StateFile {
   lastCheckedAt: string;
-  issues: Record<number, string>;
+  lastMessageTs?: string;
+  issues: Record<number, { updated_at: string; messageTs?: string }>;
 }
 
 export interface NotificationStats {

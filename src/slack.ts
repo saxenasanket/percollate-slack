@@ -13,6 +13,7 @@ export interface SlackBlocksPayload {
   channel: string;
   blocks: any[];
   text: string;
+  ts?: string;
 }
 
 export function buildNotificationBlocks(
@@ -158,13 +159,13 @@ export function buildNotificationBlocks(
 
     for (const issue of duplicateIssues) {
       const dupText = (issue.duplicates || [])
-        .map((d) => `<${getGitHubIssueUrl(d.issueNumber)}|#${d.issueNumber}>: ${d.reason}`)
+        .map((d) => `<${getGitHubIssueUrl(d.issueNumber)}|#${d.issueNumber}>`)
         .join(", ");
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}> may duplicate: ${dupText}`,
+          text: `<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}> → likely duplicate of ${dupText}`,
         },
       });
     }
@@ -190,10 +191,24 @@ export function buildNotificationBlocks(
   };
 }
 
-export async function sendNotification(payload: SlackBlocksPayload): Promise<void> {
+export async function sendNotification(payload: SlackBlocksPayload): Promise<string> {
   try {
-    await slack.chat.postMessage(payload);
-    console.log(`✅ Notification sent to #${payload.channel}`);
+    if (payload.ts) {
+      // Update existing message
+      await slack.chat.update({
+        channel: payload.channel,
+        ts: payload.ts,
+        blocks: payload.blocks,
+        text: payload.text,
+      });
+      console.log(`✅ Notification updated in #${payload.channel}`);
+      return payload.ts;
+    } else {
+      // Post new message
+      const result = await slack.chat.postMessage(payload);
+      console.log(`✅ Notification sent to #${payload.channel}`);
+      return result.ts || "";
+    }
   } catch (error) {
     console.error("Failed to send Slack notification:", error);
     throw error;

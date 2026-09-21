@@ -12,7 +12,22 @@ export function loadState(): StateFile {
     };
   }
   const content = fs.readFileSync(STATE_FILE, "utf-8");
-  return JSON.parse(content);
+  const state = JSON.parse(content);
+
+  // Migrate old format (string values) to new format (object values)
+  const migratedIssues: Record<number, { updated_at: string; messageTs?: string }> = {};
+  for (const [issueNum, value] of Object.entries(state.issues)) {
+    if (typeof value === 'string') {
+      migratedIssues[parseInt(issueNum)] = { updated_at: value };
+    } else {
+      migratedIssues[parseInt(issueNum)] = value as any;
+    }
+  }
+
+  return {
+    ...state,
+    issues: migratedIssues,
+  };
 }
 
 export function saveState(state: StateFile): void {
@@ -22,13 +37,18 @@ export function saveState(state: StateFile): void {
 export function updateIssueTimestamp(
   state: StateFile,
   issueNumber: number,
-  updatedAt: string
+  updatedAt: string,
+  messageTs?: string
 ): StateFile {
+  const existingIssue = state.issues[issueNumber];
   return {
     ...state,
     issues: {
       ...state.issues,
-      [issueNumber]: updatedAt,
+      [issueNumber]: {
+        updated_at: updatedAt,
+        messageTs: messageTs || (typeof existingIssue === 'object' ? existingIssue.messageTs : undefined),
+      },
     },
   };
 }
@@ -44,10 +64,14 @@ export function getNewAndUpdatedIssues(
   const updated_issues: number[] = [];
 
   for (const issue of fetchedIssues) {
-    if (!state.issues[issue.number]) {
+    const existingIssue = state.issues[issue.number];
+    if (!existingIssue) {
       new_issues.push(issue.number);
-    } else if (state.issues[issue.number] !== issue.updated_at) {
-      updated_issues.push(issue.number);
+    } else {
+      const existingUpdatedAt = typeof existingIssue === 'object' ? existingIssue.updated_at : existingIssue;
+      if (existingUpdatedAt !== issue.updated_at) {
+        updated_issues.push(issue.number);
+      }
     }
   }
 

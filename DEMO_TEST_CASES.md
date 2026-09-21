@@ -52,8 +52,12 @@ Body: Query time: 2s → 15s after recent deploy
 
 **Create:**
 ```
-Title: Update API documentation
-Body: Docs outdated for v2 endpoints. Design ready.
+Title: Dashboard performance degraded - queries now 7.5x slower
+Body:
+Dashboard query performance regressed significantly.
+Query time: 2s → 15s (7.5x slower)
+Affects user experience when loading dashboards.
+Started after recent API deployment.
 ```
 
 **Expect Slack:**
@@ -63,10 +67,10 @@ Body: Docs outdated for v2 endpoints. Design ready.
 #2: HIGH...
 
 🟡 Worth a Look (1)
-• #3: Update API documentation
+• #3: Dashboard performance degraded...
 ```
 
-**Capability:** ✅ Visual hierarchy reduces cognitive load
+**Capability:** ✅ Visual hierarchy reduces cognitive load (Medium shown as collapsed bullets)
 
 ---
 
@@ -75,37 +79,50 @@ Body: Docs outdated for v2 endpoints. Design ready.
 **Create:**
 ```
 Title: Fix typo in welcome page
-Body: Change "Welcom" to "Welcome" on line 45
+Body:
+Found typo in welcome page.
+Location: Welcome.tsx line 45.
+Change: "Welcom" → "Welcome"
 ```
 
 **Expect Console:**
 ```
-❌ Issue #4 filtered: priority=Low, actionable=true
+❌ Issue #4 filtered: priority=Low, actionable=true, duplicates=0
+Surfacing 2 of 3 issues
+```
+
+**Expect Slack (No change - issue filtered):**
+```
+Footer updates to: 📊 Reviewed: 3 | Surfaced: 2 | Filtered: 1
+```
+
+**Capability:** ✅ Filters low-priority noise, maintains transparency (footer shows filtered count)
+
+---
+
+## Case 5: Actionability Judgment (Vague Issue)
+
+**Create:**
+```
+Title: Application performance issue
+Body:
+The app feels slow sometimes.
+Not sure which part or when it happens.
+Maybe it's a general issue?
+```
+
+**Expect Console:**
+```
+❌ Issue #5 filtered: priority=Low, actionable=false, duplicates=0
+Surfacing 2 of 4 issues
 ```
 
 **Expect Slack Footer:**
 ```
-📊 Reviewed: 4 | Surfaced: 3 | Filtered: 1
+📊 Reviewed: 4 | Surfaced: 2 | Filtered: 2
 ```
 
-**Capability:** ✅ Filters low-priority noise, maintains transparency
-
----
-
-## Case 5: Actionability Judgment
-
-**Create:**
-```
-Title: App feels slow
-Body: Sometimes slow. Not sure what or when.
-```
-
-**Expect Console:**
-```
-❌ Issue #5 filtered: priority=Low, actionable=false
-```
-
-**Capability:** ✅ Judges actionability, prevents vague work
+**Capability:** ✅ Judges actionability (filters non-actionable), prevents vague work from surfacing
 
 ---
 

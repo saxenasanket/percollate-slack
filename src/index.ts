@@ -20,6 +20,16 @@ async function poll(): Promise<void> {
   try {
     // Load current state
     let state = loadState();
+
+    // Reset state if RESET_STATE env var is set (useful for testing)
+    if (process.env.RESET_STATE === "true") {
+      state = {
+        lastCheckedAt: new Date().toISOString(),
+        issues: {},
+      };
+      console.log("⚠️  State reset (RESET_STATE=true)");
+    }
+
     console.log(`Last checked at: ${state.lastCheckedAt}`);
 
     // Fetch issues updated since last check

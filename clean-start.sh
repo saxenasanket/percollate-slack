@@ -51,10 +51,10 @@ echo "   ✅ Done"
 echo ""
 
 # Step 2: Clean files
-echo "🧹 Step 2: Cleaning compiled files and state..."
-rm -rf dist .triage-state.json
+echo "🧹 Step 2: Cleaning compiled files..."
+rm -rf dist
 echo "   ✅ Removed: dist/"
-echo "   ✅ Removed: .triage-state.json"
+echo "   ℹ️  State will reset on startup (RESET_STATE=true)"
 echo ""
 
 # Step 3: Close all open issues
@@ -109,5 +109,5 @@ echo "🚀 Starting GitHub Issue Triage Agent..."
 echo "════════════════════════════════════════════════════════════════════════"
 echo ""
 
-# Start the system
-node dist/index.js
+# Start the system with state reset
+RESET_STATE=true node dist/index.js

@@ -21,14 +21,18 @@ export function buildNotificationBlocks(
 ): SlackBlocksPayload {
   const channelId = process.env.SLACK_CHANNEL_ID || "C1234567890";
 
-  const critical = triageResults.filter(
-    (t) => t.priority === "Critical" && t.actionable
-  );
-  const high = triageResults.filter(
-    (t) => t.priority === "High" && t.actionable
-  );
-  const medium = triageResults.filter((t) => t.priority === "Medium");
-  const low = triageResults.filter((t) => t.priority === "Low");
+  const critical = triageResults
+    .filter((t) => t.priority === "Critical" && t.actionable)
+    .sort((a, b) => a.issueNumber - b.issueNumber);
+  const high = triageResults
+    .filter((t) => t.priority === "High" && t.actionable)
+    .sort((a, b) => a.issueNumber - b.issueNumber);
+  const medium = triageResults
+    .filter((t) => t.priority === "Medium")
+    .sort((a, b) => a.issueNumber - b.issueNumber);
+  const low = triageResults
+    .filter((t) => t.priority === "Low")
+    .sort((a, b) => a.issueNumber - b.issueNumber);
 
   const blocks: any[] = [
     {
@@ -140,7 +144,9 @@ export function buildNotificationBlocks(
   }
 
   // Duplicates (if any)
-  const duplicateIssues = triageResults.filter((t) => t.duplicates && t.duplicates.length > 0);
+  const duplicateIssues = triageResults
+    .filter((t) => t.duplicates && t.duplicates.length > 0)
+    .sort((a, b) => a.issueNumber - b.issueNumber);
   if (duplicateIssues.length > 0) {
     blocks.push({
       type: "section",

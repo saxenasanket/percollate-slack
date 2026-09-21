@@ -71,8 +71,16 @@ async function poll(): Promise<void> {
     const triageResults = await triageIssues(issuesToTriage, recentIssues);
     console.log(`Triaged ${triageResults.length} issues`);
 
+    // Clear duplicates for UPDATED issues (only show duplicates for NEW issues)
+    const cleanedResults = triageResults.map((result) => {
+      if (updatedIssueNumbers.includes(result.issueNumber)) {
+        return { ...result, duplicates: [] };
+      }
+      return result;
+    });
+
     // Filter for notifications (exclude non-actionable low priority)
-    const surfacedIssues = triageResults.filter((t) => {
+    const surfacedIssues = cleanedResults.filter((t) => {
       const isStaleHighPriority = (t.daysStale ?? 0) >= 3 && (t.priority === "Critical" || t.priority === "High");
       const matches =
         (t.actionable && (t.priority === "Critical" || t.priority === "High")) ||
@@ -95,13 +103,13 @@ async function poll(): Promise<void> {
       return matches;
     });
 
-    console.log(`Surfacing ${surfacedIssues.length} of ${triageResults.length} issues`);
+    console.log(`Surfacing ${surfacedIssues.length} of ${cleanedResults.length} issues`);
 
     // Build notification stats
     const stats: NotificationStats = {
-      totalReviewed: triageResults.length,
+      totalReviewed: cleanedResults.length,
       surfaced: surfacedIssues.length,
-      filtered: triageResults.length - surfacedIssues.length,
+      filtered: cleanedResults.length - surfacedIssues.length,
     };
 
     // Send Slack notification if there are issues to surface

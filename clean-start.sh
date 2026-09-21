@@ -60,7 +60,7 @@ echo ""
 # Step 3: Close all open issues
 echo "🗑️  Step 3: Closing all open issues in repository..."
 if command -v gh &> /dev/null; then
-  OPEN_ISSUES=$(gh issue list --repo "$GITHUB_OWNER/$GITHUB_REPO" --state open -q '.[]|.number' 2>/dev/null || echo "")
+  OPEN_ISSUES=$(gh issue list --repo "$GITHUB_OWNER/$GITHUB_REPO" --state open --json number -q '.[]|.number' 2>/dev/null || echo "")
 
   if [ ! -z "$OPEN_ISSUES" ]; then
     ISSUE_COUNT=$(echo "$OPEN_ISSUES" | wc -l)

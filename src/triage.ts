@@ -98,13 +98,25 @@ export async function triageIssues(
   const results: TriageResult[] = [];
 
   for (const issue of issues) {
-    try {
-      const result = await triageIssue(issue, recentIssues);
-      results.push(result);
-      // Small delay to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    } catch (error) {
-      console.error(`Failed to triage issue #${issue.number}:`, error);
+    let result;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (!result && attempts < maxAttempts) {
+      try {
+        result = await triageIssue(issue, recentIssues);
+        results.push(result);
+        // Small delay to avoid rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch (error) {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          console.error(`Failed to triage issue #${issue.number} after ${maxAttempts} attempts:`, error);
+        } else {
+          console.log(`⚠️  Triage attempt ${attempts} failed for #${issue.number}, retrying...`);
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait before retry
+        }
+      }
     }
   }
 

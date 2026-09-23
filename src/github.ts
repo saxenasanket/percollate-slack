@@ -22,18 +22,23 @@ export async function fetchIssuesSince(
   console.log(`[GitHub API] Fetching issues since: ${useSince || "beginning of time"}`);
 
   while (hasMore) {
-    const response = await octokit.issues.listForRepo({
-      owner,
-      repo,
-      state: "open",
-      ...(useSince && { since: useSince }),
-      sort: "updated",
-      direction: "desc",
-      per_page: 30,
-      page,
-    });
+    try {
+      const response = await octokit.issues.listForRepo({
+        owner,
+        repo,
+        state: "open",
+        ...(useSince && { since: useSince }),
+        sort: "updated",
+        direction: "desc",
+        per_page: 30,
+        page,
+      });
 
-    console.log(`[GitHub API] Page ${page}: Got ${response.data.length} issues`);
+      console.log(`[GitHub API] Page ${page}: Got ${response.data.length} issues`);
+
+      if (!response.data || response.data.length === 0) {
+        console.log(`[GitHub API] Empty response - response.data = ${JSON.stringify(response.data)}`);
+      }
 
     issues.push(
       ...response.data.map((item: any) => ({
@@ -51,8 +56,14 @@ export async function fetchIssuesSince(
       }))
     );
 
-    hasMore = response.data.length === 30;
-    page++;
+      hasMore = response.data.length === 30;
+      page++;
+    } catch (error: any) {
+      console.error(`[GitHub API] ERROR on page ${page}:`, error.message);
+      console.error(`[GitHub API] Status:`, error.status);
+      console.error(`[GitHub API] Full error:`, error);
+      throw error;
+    }
   }
 
   console.log(`[GitHub API] Total issues fetched: ${issues.length}`);

@@ -100,7 +100,7 @@ export async function triageIssues(
   for (const issue of issues) {
     let result;
     let attempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 5;
 
     while (!result && attempts < maxAttempts) {
       try {
@@ -113,8 +113,10 @@ export async function triageIssues(
         if (attempts >= maxAttempts) {
           console.error(`Failed to triage issue #${issue.number} after ${maxAttempts} attempts:`, error);
         } else {
-          console.log(`⚠️  Triage attempt ${attempts} failed for #${issue.number}, retrying...`);
-          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait before retry
+          // Exponential backoff: 1s, 2s, 4s, 8s
+          const backoffMs = Math.pow(2, attempts - 1) * 1000;
+          console.log(`⚠️  Triage attempt ${attempts} failed for #${issue.number}, retrying in ${backoffMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
         }
       }
     }

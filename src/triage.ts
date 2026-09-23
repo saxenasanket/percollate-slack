@@ -58,9 +58,17 @@ Respond ONLY with valid JSON, no other text.`;
     ],
   });
 
+  if (!response.content || response.content.length === 0) {
+    throw new Error("Empty response from Claude - no content");
+  }
+
   const content = response.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from Claude");
+  if (!content || content.type !== "text") {
+    throw new Error(`Unexpected response type: ${content?.type || "undefined"}, content: ${JSON.stringify(content)}`);
+  }
+
+  if (!content.text) {
+    throw new Error("No text in Claude response");
   }
 
   let triage: any;

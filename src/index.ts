@@ -78,7 +78,7 @@ async function poll(): Promise<void> {
       const isStaleHighPriority = (t.daysStale ?? 0) >= 3 && (t.priority === "Critical" || t.priority === "High");
       const matches =
         t.priority === "Critical" ||  // Always surface Critical issues (even if vague)
-        (t.actionable && t.priority === "High") ||  // High only if actionable
+        t.priority === "High" ||  // Always surface High priority issues
         t.priority === "Medium" ||
         (t.duplicates && t.duplicates.length > 0) ||
         isStaleHighPriority;

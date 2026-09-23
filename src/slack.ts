@@ -16,12 +16,17 @@ export interface SlackBlocksPayload {
   ts?: string;
 }
 
+// Build Slack Block Kit message from triaged issues
+// Groups issues by priority, creates visual sections, includes duplicates section and footer
+// Returns a payload ready to send to Slack API
 export function buildNotificationBlocks(
   triageResults: TriageResult[],
   stats: NotificationStats
 ): SlackBlocksPayload {
   const channelId = process.env.SLACK_CHANNEL_ID || "C1234567890";
 
+  // Organize issues by priority tier
+  // This determines the order and visual hierarchy in Slack
   const critical = triageResults
     .filter((t) => t.priority === "Critical")
     .sort((a, b) => a.issueNumber - b.issueNumber);
@@ -35,6 +40,7 @@ export function buildNotificationBlocks(
     .filter((t) => t.priority === "Low")
     .sort((a, b) => a.issueNumber - b.issueNumber);
 
+  // Start building Block Kit blocks (Slack's message format)
   const blocks: any[] = [
     {
       type: "header",
@@ -62,11 +68,14 @@ export function buildNotificationBlocks(
       const staleIndicator = issue.daysStale ? `\n⏰ Last updated ${issue.daysStale} days ago` : "";
       const isDuplicate = issue.duplicates && issue.duplicates.length > 0;
       const actionText = isDuplicate ? "⚠️ Possible duplicate" : `_${issue.likelyAction}_`;
+      const mergedIndicator = issue.mergedFrom && issue.mergedFrom.length > 0
+        ? `\n📋 Also reported as: ${issue.mergedFrom.map((n) => `<${getGitHubIssueUrl(n)}|#${n}>`).join(", ")}`
+        : "";
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n${actionText}\n🏷️ ${issue.type}${staleIndicator}`,
+          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n${actionText}\n🏷️ ${issue.type}${staleIndicator}${mergedIndicator}`,
         },
       });
     }
@@ -88,11 +97,14 @@ export function buildNotificationBlocks(
       const staleIndicator = issue.daysStale ? `\n⏰ Last updated ${issue.daysStale} days ago` : "";
       const isDuplicate = issue.duplicates && issue.duplicates.length > 0;
       const actionText = isDuplicate ? "⚠️ Possible duplicate" : `_${issue.likelyAction}_`;
+      const mergedIndicator = issue.mergedFrom && issue.mergedFrom.length > 0
+        ? `\n📋 Also reported as: ${issue.mergedFrom.map((n) => `<${getGitHubIssueUrl(n)}|#${n}>`).join(", ")}`
+        : "";
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n${actionText}\n🏷️ ${issue.type}${staleIndicator}`,
+          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n${actionText}\n🏷️ ${issue.type}${staleIndicator}${mergedIndicator}`,
         },
       });
     }
@@ -111,10 +123,12 @@ export function buildNotificationBlocks(
     });
 
     const mediumText = medium
-      .map(
-        (issue) =>
-          `• <${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}>: ${issue.summary}`
-      )
+      .map((issue) => {
+        const mergedIndicator = issue.mergedFrom && issue.mergedFrom.length > 0
+          ? ` (also: ${issue.mergedFrom.map((n) => `#${n}`).join(", ")})`
+          : "";
+        return `• <${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}>: ${issue.summary}${mergedIndicator}`;
+      })
       .join("\n");
 
     blocks.push({
@@ -195,24 +209,32 @@ export function buildNotificationBlocks(
   };
 }
 
+// Send Slack message (either update existing or post new)
+// If payload.ts is set: updates the existing message (replaces it)
+// If payload.ts is not set: posts a new message to the channel
+// Returns the message timestamp (ts) for future reference
 export async function sendNotification(payload: SlackBlocksPayload): Promise<string> {
   try {
     if (payload.ts) {
-      // Update existing message
+      // UPDATE MODE: Replace existing Slack message
+      // Used when same issues are updated (e.g., status change, new analysis)
+      // This keeps the channel clean (one message per incident set)
       await slack.chat.update({
         channel: payload.channel,
-        ts: payload.ts,
+        ts: payload.ts,           // Target the specific message to update
         blocks: payload.blocks,
         text: payload.text,
       } as any);
       console.log(`✅ Notification updated in #${payload.channel}`);
       return payload.ts;
     } else {
-      // Post new message
+      // POST MODE: Send new message to channel
+      // Used when new issues are added to the digest
+      // This keeps all incidents visible in Slack thread history
       const result = await slack.chat.postMessage({
         ...payload,
-        unfurl_links: false,  // Disable link previews
-        unfurl_media: false,
+        unfurl_links: false,  // Don't auto-preview GitHub links (reduces clutter)
+        unfurl_media: false,  // Don't auto-preview images/videos
       } as any);
       console.log(`✅ Notification sent to #${payload.channel}`);
       return result.ts || "";

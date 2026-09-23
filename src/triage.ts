@@ -7,15 +7,21 @@ const anthropic = new Anthropic({
 
 const MODEL = "claude-sonnet-5";
 
+// Analyze a single GitHub issue using Claude API
+// Returns: priority, type, actionability, recommended action, summary, and any detected duplicates
+// This is the core triage decision-making function
 export async function triageIssue(
   issue: Issue,
   recentIssues: Array<{ number: number; title: string; summary: string }>
 ): Promise<TriageResult> {
-  // Calculate how many days since last update (for stale detection)
+  // Calculate staleness: how many days since last update
+  // Used later to detect forgotten old issues that should be re-surfaced
   const updatedAtTime = new Date(issue.updated_at).getTime();
   const nowTime = new Date().getTime();
   const daysStale = Math.floor((nowTime - updatedAtTime) / (1000 * 60 * 60 * 24));
 
+  // Format recent issues for Claude (context for duplicate detection)
+  // Each issue: number, title, and first 150 chars of summary
   const recentIssuesList = recentIssues
     .map(
       (i) =>
@@ -23,6 +29,8 @@ export async function triageIssue(
     )
     .join("\n\n");
 
+  // Claude prompt: Tell Claude exactly what to analyze and what output format to return
+  // This is the instruction that drives the entire triage logic
   const prompt = `You are a GitHub issue triage system. Analyze this issue and provide structured triage data.
 
 ## New Issue to Triage
@@ -47,6 +55,8 @@ Analyze this issue and respond with a JSON object containing:
 
 Respond ONLY with valid JSON, no other text.`;
 
+  // Call Claude API with the issue analysis prompt
+  // Returns JSON with priority, type, actionable decision, and duplicates detected
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 1024,
@@ -62,19 +72,25 @@ Respond ONLY with valid JSON, no other text.`;
     throw new Error("Empty response from Claude - no content");
   }
 
-  const content = response.content[0];
-  if (!content || content.type !== "text") {
-    throw new Error(`Unexpected response type: ${content?.type || "undefined"}, content: ${JSON.stringify(content)}`);
+  // Extract text block from response
+  // Note: Claude may include thinking blocks before the text response
+  // We need to skip those and find the actual text block
+  const textBlock = response.content.find((block: any) => block.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error(`No text block in Claude response. Got: ${response.content.map((c: any) => c.type).join(", ")}`);
   }
 
-  if (!content.text) {
+  if (!textBlock.text) {
     throw new Error("No text in Claude response");
   }
 
+  const content = textBlock;
+
+  // Parse Claude's JSON response
   let triage: any;
   try {
     let jsonText = content.text.trim();
-    // Remove markdown code blocks if present
+    // Claude sometimes wraps JSON in markdown code blocks, so remove those
     if (jsonText.startsWith("```json")) {
       jsonText = jsonText.replace(/^```json\n/, "").replace(/\n```$/, "");
     } else if (jsonText.startsWith("```")) {
@@ -86,19 +102,24 @@ Respond ONLY with valid JSON, no other text.`;
     throw e;
   }
 
+  // Return structured triage result
+  // This gets used by index.ts to filter, merge, and display the issue
   return {
     issueNumber: issue.number,
-    priority: triage.priority,
-    type: triage.type,
-    actionable: triage.actionable,
-    actionReason: triage.actionReason,
-    likelyAction: triage.likelyAction,
-    summary: triage.summary,
-    duplicates: triage.duplicates || [],
-    daysStale: daysStale > 0 ? daysStale : undefined,
+    priority: triage.priority,           // Critical/High/Medium/Low (determines Slack section)
+    type: triage.type,                   // bug/feature/question/docs/chore (shows in Slack)
+    actionable: triage.actionable,       // Can someone act on this? (influences filtering)
+    actionReason: triage.actionReason,   // Why is it actionable or not?
+    likelyAction: triage.likelyAction,   // What should the team do next? (shows in Slack)
+    summary: triage.summary,             // One-line summary (shows in Slack)
+    duplicates: triage.duplicates || [], // Other issues this might be duplicate of
+    daysStale: daysStale > 0 ? daysStale : undefined,  // How old is this issue?
   };
 }
 
+// Triage multiple issues
+// Loops through each issue, calls Claude for each, with retry logic for API failures
+// Returns array of TriageResults or empty if all fail
 export async function triageIssues(
   issues: Issue[],
   recentIssues: Array<{ number: number; title: string; summary: string }>
@@ -110,18 +131,23 @@ export async function triageIssues(
     let attempts = 0;
     const maxAttempts = 5;
 
+    // Retry logic: If Claude API call fails, retry with exponential backoff
+    // Failures can be rate limits, network issues, malformed responses, etc.
     while (!result && attempts < maxAttempts) {
       try {
         result = await triageIssue(issue, recentIssues);
         results.push(result);
-        // Small delay to avoid rate limiting
+
+        // Rate limiting: Add small delay between API calls to avoid hitting Claude rate limits
         await new Promise((resolve) => setTimeout(resolve, 500));
       } catch (error) {
         attempts++;
         if (attempts >= maxAttempts) {
+          // Give up after 5 attempts, log error and skip this issue
           console.error(`Failed to triage issue #${issue.number} after ${maxAttempts} attempts:`, error);
         } else {
-          // Exponential backoff: 1s, 2s, 4s, 8s
+          // Exponential backoff: wait 1s, 2s, 4s, 8s before retrying
+          // This gives the Claude API time to recover if it's overloaded
           const backoffMs = Math.pow(2, attempts - 1) * 1000;
           console.log(`⚠️  Triage attempt ${attempts} failed for #${issue.number}, retrying in ${backoffMs}ms...`);
           await new Promise((resolve) => setTimeout(resolve, backoffMs));

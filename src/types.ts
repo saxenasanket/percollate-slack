@@ -24,6 +24,7 @@ export interface TriageResult {
     issueNumber: number;
     reason: string;
   }[];
+  mergedFrom?: number[];
   daysStale?: number;
   messageTs?: string;
 }
@@ -31,6 +32,7 @@ export interface TriageResult {
 export interface StateFile {
   lastCheckedAt: string;
   lastMessageTs?: string;
+  lastSurfacedIssues?: number[];
   issues: Record<number, { updated_at: string; messageTs?: string }>;
 }
 

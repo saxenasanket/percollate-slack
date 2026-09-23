@@ -60,11 +60,13 @@ export function buildNotificationBlocks(
 
     for (const issue of critical) {
       const staleIndicator = issue.daysStale ? `\n⏰ Last updated ${issue.daysStale} days ago` : "";
+      const isDuplicate = issue.duplicates && issue.duplicates.length > 0;
+      const actionText = isDuplicate ? "⚠️ Possible duplicate" : `_${issue.likelyAction}_`;
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
+          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n${actionText}\n🏷️ ${issue.type}${staleIndicator}`,
         },
       });
     }
@@ -84,11 +86,13 @@ export function buildNotificationBlocks(
 
     for (const issue of high) {
       const staleIndicator = issue.daysStale ? `\n⏰ Last updated ${issue.daysStale} days ago` : "";
+      const isDuplicate = issue.duplicates && issue.duplicates.length > 0;
+      const actionText = isDuplicate ? "⚠️ Possible duplicate" : `_${issue.likelyAction}_`;
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n_${issue.likelyAction}_\n🏷️ ${issue.type}${staleIndicator}`,
+          text: `*<${getGitHubIssueUrl(issue.issueNumber)}|#${issue.issueNumber}: ${issue.summary}>*\n${actionText}\n🏷️ ${issue.type}${staleIndicator}`,
         },
       });
     }
@@ -200,12 +204,16 @@ export async function sendNotification(payload: SlackBlocksPayload): Promise<str
         ts: payload.ts,
         blocks: payload.blocks,
         text: payload.text,
-      });
+      } as any);
       console.log(`✅ Notification updated in #${payload.channel}`);
       return payload.ts;
     } else {
       // Post new message
-      const result = await slack.chat.postMessage(payload);
+      const result = await slack.chat.postMessage({
+        ...payload,
+        unfurl_links: false,  // Disable link previews
+        unfurl_media: false,
+      } as any);
       console.log(`✅ Notification sent to #${payload.channel}`);
       return result.ts || "";
     }

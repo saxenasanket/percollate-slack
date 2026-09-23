@@ -20,16 +20,6 @@ async function poll(): Promise<void> {
   try {
     // Load current state
     let state = loadState();
-
-    // Reset state if RESET_STATE env var is set (useful for testing)
-    if (process.env.RESET_STATE === "true") {
-      state = {
-        lastCheckedAt: new Date().toISOString(),
-        issues: {},
-      };
-      console.log("⚠️  State reset (RESET_STATE=true)");
-    }
-
     console.log(`Last checked at: ${state.lastCheckedAt}`);
 
     // Fetch issues updated since last check
@@ -140,6 +130,17 @@ async function main(): Promise<void> {
   console.log("🚀 GitHub Issue Triage Agent Starting");
   console.log(`Repository: ${GITHUB_OWNER}/${GITHUB_REPO}`);
   console.log(`Poll interval: ${POLL_INTERVAL / 1000}s`);
+
+  // Reset state if RESET_STATE env var is set (only once, at startup)
+  if (process.env.RESET_STATE === "true") {
+    const emptyState = {
+      lastCheckedAt: new Date().toISOString(),
+      issues: {},
+    };
+    saveState(emptyState);
+    console.log("⚠️  State reset on startup (RESET_STATE=true)");
+    console.log("");
+  }
 
   // Run immediately
   await poll();

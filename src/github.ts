@@ -19,6 +19,8 @@ export async function fetchIssuesSince(
   const year2000 = new Date("2000-01-01").getTime();
   const useSince = sinceDate > year2000 ? since : undefined;
 
+  console.log(`[GitHub API] Fetching issues since: ${useSince || "beginning of time"}`);
+
   while (hasMore) {
     const response = await octokit.issues.listForRepo({
       owner,

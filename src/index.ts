@@ -23,8 +23,12 @@ async function poll(): Promise<void> {
     console.log(`Last checked at: ${state.lastCheckedAt}`);
 
     // Fetch issues updated since last check
+    console.log(`GitHub API query: since=${state.lastCheckedAt}`);
     const allIssues = await fetchIssuesSince(GITHUB_OWNER, GITHUB_REPO, state.lastCheckedAt);
     console.log(`Fetched ${allIssues.length} updated/new issues`);
+    if (allIssues.length > 0) {
+      console.log(`  Issues: ${allIssues.map((i) => `#${i.number} (${i.updated_at})`).join(", ")}`);
+    }
 
     if (allIssues.length === 0) {
       console.log("No new or updated issues.");
@@ -73,7 +77,8 @@ async function poll(): Promise<void> {
     const surfacedIssues = cleanedResults.filter((t) => {
       const isStaleHighPriority = (t.daysStale ?? 0) >= 3 && (t.priority === "Critical" || t.priority === "High");
       const matches =
-        (t.actionable && (t.priority === "Critical" || t.priority === "High")) ||
+        t.priority === "Critical" ||  // Always surface Critical issues (even if vague)
+        (t.actionable && t.priority === "High") ||  // High only if actionable
         t.priority === "Medium" ||
         (t.duplicates && t.duplicates.length > 0) ||
         isStaleHighPriority;

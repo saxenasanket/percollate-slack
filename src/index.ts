@@ -110,7 +110,13 @@ async function poll(): Promise<void> {
     // Send Slack notification if there are issues to surface
     if (surfacedIssues.length > 0) {
       const payload = buildNotificationBlocks(surfacedIssues, stats);
-      payload.ts = state.lastMessageTs;
+
+      // If there are duplicates, send NEW message (don't update old one)
+      const hasDuplicates = surfacedIssues.some((t) => t.duplicates && t.duplicates.length > 0);
+      if (!hasDuplicates) {
+        payload.ts = state.lastMessageTs;  // Update existing message
+      }
+
       const messageTs = await sendNotification(payload);
       state.lastMessageTs = messageTs;
     } else {

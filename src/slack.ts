@@ -26,7 +26,7 @@ export function buildNotificationBlocks(
     .filter((t) => t.priority === "Critical")
     .sort((a, b) => a.issueNumber - b.issueNumber);
   const high = triageResults
-    .filter((t) => t.priority === "High" && t.actionable)
+    .filter((t) => t.priority === "High")
     .sort((a, b) => a.issueNumber - b.issueNumber);
   const medium = triageResults
     .filter((t) => t.priority === "Medium")

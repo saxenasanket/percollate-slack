@@ -33,6 +33,8 @@ export async function fetchIssuesSince(
       page,
     });
 
+    console.log(`[GitHub API] Page ${page}: Got ${response.data.length} issues`);
+
     issues.push(
       ...response.data.map((item: any) => ({
         number: item.number,
@@ -52,6 +54,8 @@ export async function fetchIssuesSince(
     hasMore = response.data.length === 30;
     page++;
   }
+
+  console.log(`[GitHub API] Total issues fetched: ${issues.length}`);
 
   return issues;
 }

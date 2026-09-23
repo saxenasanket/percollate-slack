@@ -23,7 +23,7 @@ export function buildNotificationBlocks(
   const channelId = process.env.SLACK_CHANNEL_ID || "C1234567890";
 
   const critical = triageResults
-    .filter((t) => t.priority === "Critical" && t.actionable)
+    .filter((t) => t.priority === "Critical")
     .sort((a, b) => a.issueNumber - b.issueNumber);
   const high = triageResults
     .filter((t) => t.priority === "High" && t.actionable)
